@@ -18,6 +18,24 @@ class ChannelCollection {
     this.id,
   });
 
+  Stream<List<Map<String, dynamic>>> snapshot() {
+    var channel = IOWebSocketChannel.connect('ws://localhost:3000');
+    final inputData = {
+      'action': 'read',
+      'collection': collectionName,
+    };
+    channel.sink.add(jsonEncode(inputData));
+    return channel.stream.map((response) {
+      final responseData = jsonDecode(response);
+      final List<dynamic>? data = responseData['data'];
+      if (data != null) {
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        return [];
+      }
+    });
+  }
+
   Future get() async {
     var channel = IOWebSocketChannel.connect('ws://localhost:3000');
     final inputData = {

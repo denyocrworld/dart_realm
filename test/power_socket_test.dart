@@ -17,7 +17,7 @@ void main() async {
     "price": 25,
   });
 
-  await Cilukba.instance.collection("products").doc(id).delete();
+  // await Cilukba.instance.collection("products").doc(id).delete();
 
   var xxx = await Cilukba.instance.collection("products").get();
   print(xxx);
