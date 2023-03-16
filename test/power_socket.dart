@@ -21,7 +21,7 @@ class ChannelCollection {
   Stream<List<Map<String, dynamic>>> snapshot() {
     var channel = IOWebSocketChannel.connect('ws://localhost:3000');
     final inputData = {
-      'action': 'read',
+      'action': 'snapshot',
       'collection': collectionName,
     };
     channel.sink.add(jsonEncode(inputData));

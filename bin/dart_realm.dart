@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:shelf/shelf.dart';
@@ -7,9 +8,11 @@ import 'package:uuid/uuid.dart';
 
 void main() {
   final data = <String, List<Map<String, dynamic>>>{};
-
+  final dataController =
+      StreamController<Map<String, List<Map<String, dynamic>>>>.broadcast();
+  StreamSubscription? subscription;
   var handler = webSocketHandler((webSocket) {
-    webSocket.stream.listen((message) {
+    webSocket.stream.listen((message) async {
       final decodedMessage = jsonDecode(message);
       final action = decodedMessage['action'];
       final collection = decodedMessage['collection'];
@@ -24,13 +27,13 @@ void main() {
       if (!data.containsKey(collection)) {
         data[collection] = [];
       }
-
       switch (action) {
         case 'create':
           if (payload is Map<String, dynamic>) {
             final id = Uuid().v4();
             final newPayload = {...payload, 'id': id};
             data[collection]!.add(newPayload);
+            dataController.add({});
             webSocket.sink.add(jsonEncode({
               'message': 'Data added to $collection',
               'id': id,
@@ -42,6 +45,17 @@ void main() {
         case 'read':
           var collectionData = data[collection] ?? [];
           webSocket.sink.add(jsonEncode({'data': collectionData}));
+          break;
+        case 'snapshot':
+          var collectionData = data[collection] ?? [];
+          webSocket.sink.add(jsonEncode({'data': collectionData}));
+
+          subscription?.cancel();
+          subscription = dataController.stream.listen((event) {
+            var collectionData = data[collection] ?? [];
+            print('>>>>>>>>>>>>>Data changed: $event');
+            webSocket.sink.add(jsonEncode({'data': collectionData}));
+          });
           break;
         case 'update':
           if (payload is Map<String, dynamic>) {

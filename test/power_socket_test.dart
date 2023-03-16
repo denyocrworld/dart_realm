@@ -21,4 +21,17 @@ void main() async {
 
   var xxx = await Cilukba.instance.collection("products").get();
   print(xxx);
+
+  for (var i = 1; i <= 10; i++) {
+    Future.delayed(Duration(seconds: 1 * i), () {
+      Cilukba.instance.collection("products").add({
+        "product_name": "GG FILTER 12",
+        "price": 25,
+      });
+    });
+  }
+  var snapshot = Cilukba.instance.collection("products").snapshot();
+  snapshot.listen((event) {
+    // print(event);
+  });
 }
