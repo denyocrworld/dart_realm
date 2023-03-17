@@ -8,23 +8,28 @@ import 'package:uuid/uuid.dart';
 
 void main() {
   final data = <String, List<Map<String, dynamic>>>{};
+
+  Map<String, StreamSubscription?> subscriptions = {};
+  Map<String, int> subscriptionsPointerId = {};
+  List<Map<String, dynamic>> updateHistories = [];
+
   final dataController =
       StreamController<Map<String, List<Map<String, dynamic>>>>.broadcast();
-  StreamSubscription? subscription;
+  final updateHistoriesController =
+      StreamController<List<Map<String, dynamic>>>.broadcast();
+
   var handler = webSocketHandler((webSocket) {
     webSocket.stream.listen((message) async {
       final decodedMessage = jsonDecode(message);
       final action = decodedMessage['action'];
       final collection = decodedMessage['collection'];
       final payload = decodedMessage['payload'];
+      final sessionId = decodedMessage['session_id'];
+      final int pointerId = decodedMessage['pointer_id'] ?? -1;
+      final actionId = decodedMessage['action_id'] ?? -1;
       final id = decodedMessage['id'];
 
-      print("action: $action");
-      print("collection: $collection");
-      print("payload: $payload");
-      print("id: $id");
-
-      if (!data.containsKey(collection)) {
+      if (collection != null && !data.containsKey(collection)) {
         data[collection] = [];
       }
       switch (action) {
@@ -34,6 +39,18 @@ void main() {
             final newPayload = {...payload, 'id': id};
             data[collection]!.add(newPayload);
             dataController.add({});
+
+            var obj = {
+              "action_id": DateTime.now().microsecondsSinceEpoch,
+              "action": action,
+              "collection": collection,
+              "session_id": sessionId,
+              "id": id,
+              "payload": payload,
+            };
+            updateHistories.add(obj);
+            updateHistoriesController.add(updateHistories);
+
             webSocket.sink.add(jsonEncode({
               'message': 'Data added to $collection',
               'id': id,
@@ -47,15 +64,45 @@ void main() {
           webSocket.sink.add(jsonEncode({'data': collectionData}));
           break;
         case 'snapshot':
-          var collectionData = data[collection] ?? [];
-          webSocket.sink.add(jsonEncode({'data': collectionData}));
+          {
+            List updates = [];
+            print("A. pointerId: $pointerId");
+            updates = updateHistories
+                .where((i) =>
+                    i["collection"] == collection && i['action_id'] > pointerId)
+                .toList();
 
-          subscription?.cancel();
-          subscription = dataController.stream.listen((event) {
-            var collectionData = data[collection] ?? [];
-            print('>>>>>>>>>>>>>Data changed: $event');
-            webSocket.sink.add(jsonEncode({'data': collectionData}));
-          });
+            webSocket.sink.add(jsonEncode({
+              'data_count': updates.length,
+              'data': updates.isNotEmpty ? [updates.first] : [],
+              'first_time': false,
+            }));
+          }
+
+          // subscriptions[sessionId]?.cancel();
+          // subscriptions[sessionId] =
+          //     updateHistoriesController.stream.listen((event) {
+          //   var updates = [];
+
+          //   var pointerId = subscriptionsPointerId[sessionId] ?? -1;
+
+          //   print("B. pointerId: $pointerId");
+          //   updates = updateHistories
+          //       .where((i) =>
+          //           i["collection"] == collection && i['action_id'] > pointerId)
+          //       .toList();
+
+          //   print("SEND UPDATE: ${updates.first}");
+
+          //   webSocket.sink.add(jsonEncode({
+          //     'data': updates.isNotEmpty ? [updates.first] : [],
+          //     'first_time': false,
+          //   }));
+          // });
+          break;
+        case 'pointer_update':
+          print("update pointer_id to $actionId");
+          subscriptionsPointerId[sessionId] = actionId;
           break;
         case 'update':
           if (payload is Map<String, dynamic>) {
